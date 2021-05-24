@@ -611,8 +611,10 @@ void icom_parse_serial_input(void)
       civ_value += (uint32_t) 1000000 * (transceiver_in_string[8] & 0x0f);            // MHz
       civ_value += (uint32_t) 10000000 * ((transceiver_in_string[8] & 0xf0) >> 4);    // 10 x MHz
 
-      civ_value += (uint32_t) 100000000 * (transceiver_in_string[9] & 0x0f);          // 100 x MHz
-      civ_value += (uint32_t) 1000000000 * ((transceiver_in_string[9] & 0xf0) >> 4);  // GHz
+      if ( transceiver_in_string[9] != 0xfd ) {   // some older ICOM rigs report current VFO frequency in 4 bytes insted of 5. Watch for End Of Message (0xfd)
+          civ_value += (uint32_t) 100000000 * (transceiver_in_string[9] & 0x0f);          // 100 x MHz
+          civ_value += (uint32_t) 1000000000 * ((transceiver_in_string[9] & 0xf0) >> 4);  // GHz
+      }
 
       //
       // Update running frequency of the application
