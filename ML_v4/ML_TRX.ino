@@ -561,6 +561,23 @@ int8_t transceiver_async_read(void)
   return Incoming;
 }
 
+//
+//---------------------------------------------------------------------------------
+// Conversion to and from BCD helpers
+// Used to pass and parse values to ICOMs. Added /NoMe
+//---------------------------------------------------------------------------------
+//
+//
+uint8_t bcdToBin(uint8_t val)
+{
+  return ( 10*(val >> 4) + (val & 0x0f) );
+}
+
+uint8_t binToBcd(uint8_t val)
+{
+  return ( ((val/10) << 4) + val%10 );
+}
+
 
 uint8_t icom_filter;                            // RX Filter setting, specific to ICOM
 //---------------------------------------------------------------------------------
@@ -594,8 +611,10 @@ void icom_parse_serial_input(void)
       civ_value += (uint32_t) 1000000 * (transceiver_in_string[8] & 0x0f);            // MHz
       civ_value += (uint32_t) 10000000 * ((transceiver_in_string[8] & 0xf0) >> 4);    // 10 x MHz
 
-      civ_value += (uint32_t) 100000000 * (transceiver_in_string[9] & 0x0f);          // 100 x MHz
-      civ_value += (uint32_t) 1000000000 * ((transceiver_in_string[9] & 0xf0) >> 4);  // GHz
+      if ( transceiver_in_string[9] != 0xfd ) {   // some older ICOM rigs report current VFO frequency in 4 bytes insted of 5. Watch for End Of Message (0xfd)
+          civ_value += (uint32_t) 100000000 * (transceiver_in_string[9] & 0x0f);          // 100 x MHz
+          civ_value += (uint32_t) 1000000000 * ((transceiver_in_string[9] & 0xf0) >> 4);  // GHz
+      }
 
       //
       // Update running frequency of the application
@@ -612,8 +631,8 @@ void icom_parse_serial_input(void)
     // Check if this is an incoming Power Level Indication message
     else if ((transceiver_in_string[4] == 0x14) && (transceiver_in_string[5] == 0x0a))
     {
-      trx_pwr = 100 * transceiver_in_string[6];
-      trx_pwr += transceiver_in_string[7];
+      trx_pwr = 100 * transceiver_in_string[6];      // MSB can be only 0,1 or 2. No conversion needed
+      trx_pwr += bcdToBin(transceiver_in_string[7]); 
       radio.pwr = true;                              // Indicate that we have successfully read power control level
       radio.ack = true;
     }
@@ -703,7 +722,7 @@ void icom_set_pwr(uint16_t pwr)
   trx_write(0x14);    // Set Level
   trx_write(0x0a);    // level type = RF power
   trx_write(pwr/100); // High byte (bcd)
-  trx_write(pwr%100); // Low byte (bcd)
+  trx_write(binToBcd(pwr%100)); // Low byte (bcd)
   trx_writeln(0xfd);
   delayloop(9);
 }
